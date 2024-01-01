@@ -1,113 +1,156 @@
-import Image from 'next/image'
+'use client';
+import { useState } from 'react';
+import AppBar from './components/AppBar';
+import { useSession } from 'next-auth/react';
+import { getChannelDetail, getComment, getVideoDetail } from './action';
+import Loading from './components/Loading';
+import ChannelHeader from './components/ChannelHeader';
+import VideoHeader from './components/VideoHeader';
+import Result from './components/Result';
+import Comments from './components/Comments';
 
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">app/page.js</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    const { data: session } = useSession();
+    const [videoUrl, setVideoUrl] = useState('');
+    const [comments, setComments] = useState([]);
+    const [isLoading, setLoading] = useState(false);
+    const [channel, setChannel] = useState({});
+    const [video, setVideo] = useState({});
+    const [result, setResult] = useState(null);
 
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
+    const filterText = (inputText) => {
+        // Remove emojis
+        const noEmojis = inputText.replace(/[\u{1F600}-\u{1F6FF}]/gu, '');
+        // Remove special characters
+        const noSpecialChars = noEmojis.replace(/[^\w\s]/gi, '');
 
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
+        return noSpecialChars;
+    };
 
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800 hover:dark:bg-opacity-30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
+    const analyzeComments = async (comments) => {
+        try {
+            const data = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL}/api/analyze`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ comment_data: comments }),
+                }
+            );
+            const result = await data.json();
+            return result;
+        } catch (error) {
+            console.log(error);
+            setLoading(false);
+        }
+    };
 
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
+    const handleSubmit = async (e) => {
+        e.preventDefault();
 
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  )
+        if (!videoUrl.includes('youtube.com/watch?v=')) {
+            return;
+        }
+
+        const videoId = videoUrl.split('youtube.com/watch?v=')[1].split('&')[0];
+
+        if (session) {
+            setLoading(true);
+            const data = await getComment(videoId);
+            const channelId = data[0].channelId;
+            const videoData = await getVideoDetail(videoId);
+            const channelData = await getChannelDetail(channelId);
+
+            setVideo(videoData);
+            setChannel(channelData);
+
+            const comment = data.map(
+                (item) => item.topLevelComment.snippet.textDisplay
+            );
+            let filtered_comments = comment.map((item) => filterText(item));
+            filtered_comments = filtered_comments.filter((item) => item !== '');
+
+            setComments(filtered_comments);
+            if (filtered_comments.length > 0) {
+                const result = await analyzeComments(filtered_comments);
+
+                console.log(result);
+                setResult(result);
+            }
+            setVideoUrl('');
+            setLoading(false);
+        } else {
+            alert('Please sign in to continue');
+        }
+    };
+    return (
+        <main className="bg-main-grey flex flex-col min-h-screen text-black">
+            <AppBar />
+            <div className="grid grid-cols-3 gap-4">
+                <div className="bg-main-grey min-h-screen">
+                    <p className="m-4 text-[4rem] font-bold font-mono">YVCSE</p>
+                    <p className="m-4 text-[1.5rem] font-normal font-mono">
+                        Youtube Video Comment Sentiment Explorer
+                    </p>
+                    <p className="ml-4 mt-2 font-bold">By: Nguyen Hau</p>
+
+                    <form onSubmit={handleSubmit}>
+                        <p className="ml-4 mt-12 text-[1.25rem]">
+                            Paste Youtube Video URL
+                        </p>
+                        <input
+                            className="m-4 p-2 rounded-lg border-2 border-black"
+                            type="text"
+                            placeholder="https://www.youtube.com/watch?v="
+                            value={videoUrl}
+                            onChange={(e) => setVideoUrl(e.target.value)}
+                        />
+                        {isLoading ? (
+                            <button
+                                className="m-4 p-2 rounded-lg border-2 border-black"
+                                type="submit"
+                            >
+                                <Loading />
+                            </button>
+                        ) : (
+                            <button
+                                className="m-4 p-2 rounded-lg border-2 border-black"
+                                type="submit"
+                            >
+                                Let's go
+                            </button>
+                        )}
+                    </form>
+                </div>
+
+                <div className="min-h-screen col-span-2 bg-gradient-to-br from-main-pink ">
+                    {isLoading ? (
+                        <Loading />
+                    ) : (
+                        <div className="grid grid-cols-3 border-2 border-black mt-[86px] ml-12 mr-24 rounded-md p-4 bg-white/39 backdrop-blur-md">
+                            <div className="col-span-2">
+                                <ChannelHeader channel={channel} />
+                                <VideoHeader video={video} />
+                            </div>
+                            <div className="mt-12">
+                                <p className="font-mono font-bold text-[1.25rem]">
+                                    Result
+                                </p>
+                                <Result result={result} />
+                            </div>
+                        </div>
+                    )}
+                    <div className="ml-12 mt-8">
+                        <p className="font-mono font-bold text-2xl ">
+                            {' '}
+                            Where the result comes from{' '}
+                        </p>
+                        <Comments comments={comments} result={result} />
+                    </div>
+                </div>
+            </div>
+        </main>
+    );
 }
